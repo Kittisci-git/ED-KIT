@@ -1,0 +1,47 @@
+Landing Page
+    Complete
+        Animated starfield background
+        Title    
+        Tagline
+        Tool buttons
+    
+    To Do
+        Info Page
+            Introduction to ED:KIT
+            Kittisci profile
+        Available Tools
+            Colony Planner
+            ? Commodity Route Plotter
+            ? Tutorials
+            ? Links to recommended Discords and Tools
+        Roadmap
+            Launched
+            In Development
+            Planned
+
+Colony Planner    
+    Complete   
+        Dynamic system map layout organized into rows
+        Celestial bodies can be dragged and dropped into rows
+        Bodies can contain nested bodies, supporting moons and subsystems via recursive containers
+        Each body auto-names itself with contextual suffixes
+        Each body has adaptable attributes specific to its type
+        Sidebar with toggleable drawers for:
+            Body Types
+            Orbital Ports
+            Orbital Facilities
+            Surface Ports
+            Settlements
+            Hubs
+        Palette drawer with icons and tooltips 
+            Collapsible/expandable for better screen use
+        List system stats
+        Manually customise body and facility names
+        Loading and saving system plans
+        Add build order
+        Correctly calculate T2 and T3 costs
+        Add Primary Port identifier
+        
+    To Do
+        Economy prediction
+        Take pre-requisits into account

@@ -1,0 +1,15 @@
+colplanner_v0_1
+	Basic web app working as intended.
+	Drag body types into System Map.
+	Stacking and Rows functional.
+colPlanner_v0_2
+	Added facility types and their placement rules.
+	Updated visual effects.
+	Bodies are automatically named.
+
+colPlanner_v0_3
+	Added saving and loading of system maps.
+	Added build order.
+	Corrected facility point costs based on number of prior constructions.
+	Added primary port.
+	Updated visual effects.

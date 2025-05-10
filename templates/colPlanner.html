@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ED:KIT - Colony Planner</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    body {
+      background-color: #111;
+      color: #ddd;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .body-type {
+      background-color: #222;
+      border: 1px solid #444;
+      padding: 6px 8px;
+      margin: 4px 0;
+      text-align: center;
+      cursor: grab;
+      border-radius: 6px;
+    }
+    #overlay {
+      position: fixed; 
+      top: 0; 
+      left: 0;
+      width: 100%; 
+      height: 100%;
+      background: #000;
+      pointer-events: 
+      none;
+      z-index: 2000;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+    }
+    #page-transition {
+      position: fixed; 
+      top: 0; 
+      left: 0;
+      width: 100%; 
+      height: 100%;
+      background: #000;
+      pointer-events: none;
+      z-index: 2001;
+      opacity: 0;
+      transition: opacity 0.5s ease-in;
+    }
+    #layoutWrapper {
+      display: flex;
+      height: 100vh;
+    }
+    .palette-drawer {
+      height:      100vh;
+      box-shadow:  2px 0 8px rgba(0,0,0,0.5);
+      background:  #1a1a1a;
+      border-right:1px solid #444;
+      flex: 0 0 180px;
+      width:       180px;
+      overflow:    hidden;
+      transition:  flex-basis 0.3s ease, width 0.3s ease;
+    }
+    .palette-drawer.closed {
+      width: 0;
+      flex: 0 0 0;
+      overflow: hidden;
+    }
+    #paletteDrawer { 
+      order: 0
+    }
+    #buildOrderDrawer {
+      order: 2;
+      border-right: none;
+      border-left: 1px solid #444;
+    }
+    #buildOrderList li.primary-port {
+      border-left: 3px solid #0d6efd;
+      padding-left: 8px;
+      background-color: rgba(13, 110, 253, 0.1);
+    }
+    #buildOrderList li.primary-port .bo-name::before {
+      content: "★ ";
+      color: #0d6efd;
+    }
+    .palette-scroll {
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 20px 10px 10px 10px;
+      border-left: 1px solid #333;
+      box-sizing: border-box;
+      margin-top: 10px;
+      display: block;
+    }
+    .palette-scroll.closed {
+      display: none;
+    }
+    #mainContent {
+      flex-grow: 1;
+      min-width: 0;
+      order: 1; 
+      padding: 32px;
+      height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+    .system-map-wrapper {
+      flex-grow: 1;
+      flex-shrink: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      background-color: #1a1a1a;
+      border: 1px dashed #444;
+      padding: 10px;
+      gap: 10px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    .system-map-row {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 10px;
+      border: 1px dashed #555;
+      padding: 6px;
+      min-height: 80px;
+      align-items: flex-start;
+      flex: 1 1 auto;
+      min-width: 0;
+      width: 100%; /* Add this line */
+      box-sizing: border-box;
+    }
+    .celestial-body {
+      background-color: #2a2a2a;
+      border: 1px solid #555;
+      padding: 10px;
+      border-radius: 6px;
+      min-width: 140px;
+      text-align: center;
+      user-select: none;
+      position: relative;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .nested-container {
+      margin-top: 8px;
+      padding-left: 10px;
+      border-left: 1px dashed #555;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .row-container {
+      display: flex;
+      align-items: stretch;
+    }
+    .row-handle {
+      width: 10px;
+      background-color: #666;
+      cursor: grab;
+      margin-right: 8px;
+    }
+    .row-delete {
+      color: #aaa;
+      cursor: pointer;
+      margin-left: 8px;
+      padding: 0 6px;
+    }
+    .drop-zone {
+      height: 60px;
+      border: 2px dashed #555;
+      border-radius: 6px;
+      text-align: center;
+      line-height: 60px;
+      margin-top: 12px;
+      color: #888;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .dragging-ghost {
+      opacity: 0.5;
+      background-color: #444;
+    }
+    #contentWrapper {
+      flex: 1 1 auto;
+      display: flex;
+      flex-grow: 1;
+      min-width: 0;
+    }
+    #sidebar {
+      width: 80px;
+      height: 100vh;
+      background-color: #1a1a1a;
+      border-right: 1px solid #444;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+      transition: background-color 0.3s ease;
+      z-index: 1100;
+      flex: 0 0 80px;
+    }
+    .sidebar-button {
+      width: 45px;
+      height: 45px;
+      background-color: #333;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      text-align: center;
+      line-height: 40px;
+      cursor: pointer;
+      font-size: 1.25rem;
+      margin-bottom: 10px;
+      transition: background-color 0.2s ease, color 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .sidebar-button.active {
+      background-color: #555;
+      color: #fff;
+      border-color: #888;
+    }
+    .sidebar-divider {
+      width: 100%;
+      height: 1px;
+      background-color: #444;
+      margin: 6px 0;
+    }    
+    .sidebar-icon {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    .facility-slot.placeholder {
+      background-color: #333;
+      color: #bbb;
+      padding: 6px 10px;
+      border: 1px dashed #666;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      min-width: 100px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .facility-slot.filled {
+      background-color: #28a745;
+      color: #fff;
+      padding: 6px 10px;
+      border: 1px solid #1e7e34;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      min-width: 100px;
+      text-align: center;
+      transition: all 0.3s ease;
+      transform: scale(1.05);
+    }
+    .facility-type {
+      background-color: #222;
+      border: 1px solid #444;
+      padding: 6px 8px;
+      margin: 4px 0;
+      text-align: center;
+      cursor: grab;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #ddd;
+      user-select: none;
+    }
+    .body-name {
+      font-size: 1rem;
+      margin-bottom: 2px;
+    }
+    .body-type-label {
+      font-size: 0.75rem;
+      color: #ccc;
+      opacity: 0.85;
+    }
+    
+  </style>
+</head>
+<body class="py-4">
+    <div id="overlay"></div>
+    <div id="page-transition"></div>
+    <div id="layoutWrapper" class="d-flex">
+      <!-- Sidebar for drawer buttons -->
+      <div id="sidebar">
+        <a href="/" class="sidebar-button fade-link" title="Home">
+          <img src="{{ url_for('static', filename='assets/icons/home.png') }}" class="sidebar-icon" alt="home" />
+        </a>       
+        <div id="toggleSaves" class="sidebar-button" title="Saves">
+          <img src="{{ url_for('static', filename='assets/icons/bookmark.png') }}" class="sidebar-icon" alt="bookmark" />
+        </div>
+        <div class="sidebar-divider"></div>
+        <div id="toggleBuildOrder" class="sidebar-button" title="Build Order">
+          <img src="{{ url_for('static', filename='assets/icons/Outpost.png') }}" class="sidebar-icon" alt="Outpost" />
+        </div>
+        <div class="sidebar-divider"></div>
+        <div id="togglePalette" class="sidebar-button" title="Celestial Bodies">
+          <img src="{{ url_for('static', filename='assets/icons/orrery_map.png') }}" alt="orrery_map" class="sidebar-icon" />
+        </div>
+        <div id="toggleOrbitalPorts" class="sidebar-button" title="Orbital Ports">
+          <img src="{{ url_for('static', filename='assets/icons/coriolis_sm.png') }}" alt="coriolis_sm" class="sidebar-icon" />
+        </div>
+        <div id="toggleOrbitalFacilities" class="sidebar-button" title="Orbital Facilities">
+          <img src="{{ url_for('static', filename='assets/icons/installation_sm.png') }}" alt="installation_sm" class="sidebar-icon" />
+        </div>
+        <div id="toggleSurfacePorts" class="sidebar-button" title="Surface Ports">
+          <img src="{{ url_for('static', filename='assets/icons/surface_port_sm.png') }}" alt="surface_port_sm" class="sidebar-icon" />
+        </div>
+        <div id="toggleHubs" class="sidebar-button" title="Hubs">
+          <img src="{{ url_for('static', filename='assets/icons/hub_sm.png') }}" alt="hub_sm" class="sidebar-icon" />
+        </div>
+        <div id="toggleSettlements" class="sidebar-button" title="Settlements">
+          <img src="{{ url_for('static', filename='assets/icons/settlement_sm.png') }}" alt="settlement_sm" class="sidebar-icon" />
+        </div>
+      </div>
+      
+      <div id="contentWrapper" class="d-flex flex-grow-1">
+        <!-- Palette drawer -->
+        <div id="paletteDrawer" class="palette-drawer closed">
+          <div id="savesDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Saved Systems</h4>
+            <ul id="savesList" class="list-unstyled mt-3"></ul>
+            <button id="addSaveBtn" class="btn btn-sm btn-outline-light w-100 mt-2">Save Current System</button>
+          </div>  
+          <div id="bodyTypesDrawer" class="palette-scroll closed">        
+            <h4 class="text-light">Body Types</h4>
+            <h6 class="mt-4">Stars & Belts</h6>
+            <div id="starDrawer">
+              <div class="body-type" data-type="Star">Star</div>
+              <div class="body-type" data-type="Blackhole">Blackhole</div>
+              <div class="body-type" data-type="Neutron Star">Neutron Star</div>
+              <div class="body-type" data-type="White Dwarf">White Dwarf</div>
+              <div class="body-type" data-type="Asteroid Belt">Asteroid Belt</div>
+            </div>                
+            <h6 class="mt-4">Planets</h6>
+            <div id="planetDrawer">
+              <div class="body-type" data-type="Gas Giant">Gas Giant</div>
+              <div class="body-type" data-type="Ammonia World">Ammonia World</div>
+              <div class="body-type" data-type="Earth-like World">Earth-like World</div>
+              <div class="body-type" data-type="Water World">Water World</div>
+              <div class="body-type" data-type="Metallic Body">Metallic Body</div>
+              <div class="body-type" data-type="Rocky Body">Rocky Body</div>
+              <div class="body-type" data-type="Rocky Ice Body">Rocky Ice Body</div>
+              <div class="body-type" data-type="Icy Body">Icy Body</div>
+            </div>
+          </div>
+          
+          <div id="orbitalPortsDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Orbital Ports</h4>
+            <h6 class="mt-4">Tier 3 Starports</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Ocellus Starport" data-layouts="Ocellus">Ocellus Starport</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Orbis Starport" data-layouts="Apollo,Artemis">Orbis Starport</div>
+            <h6 class="mt-4">Tier 2 Starports</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Coriolis Starport" data-layouts="No Truss,Dual Truss,Quad Truss">Coriolis Starport</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Asteroid Base" data-layouts="Ice,Metallic,Rocky">Asteroid Base</div>
+            <h6 class="mt-4">Tier 1 Starports</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Commercial Outpost" data-layouts="Plutus">Commercial Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Industrial Outpost" data-layouts="Vulcan">Industrial Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Criminal Outpost" data-layouts="Dysnomia">Criminal Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Civilian Outpost" data-layouts="Vesta">Civilian Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Scientific Outpost" data-layouts="Prometheus">Scientific Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Military Outpost" data-layouts="Nemesis">Military Outpost</div>
+          </div>
+          
+          <div id="orbitalFacilitiesDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Orbital Facilities</h4>
+            <h6 class="mt-4">Tier 2 Facilities</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Military Installation" data-layouts="Vacuna,Alastor">Military Installation</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Security Station" data-layouts="Dicaeosyne,Poena,Eunomia,Nomos">Security Station</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Government Installation" data-layouts="Harmonia">Government Installation</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Medical Installation" data-layouts="Asclepius,Eupraxia">Medical Installation</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Research Station" data-layouts="Astraeus,Coeus,Dodona,Dione">Research Station</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Tourist Installation" data-layouts="Hedone,Opora,Pasithea">Tourist Installation</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Space Bar" data-layouts="Dionysus,Bacchus">Space Bar</div>
+            <h6 class="mt-4">Tier 1 Facilities</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Satellite" data-layouts="Hermes,Angelia,Eirene">Satellite</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Comm Station" data-layouts="Pistis,Soter,Aletheia">Comm Station</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Space Farm" data-layouts="Demeter">Space Farm</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Pirate Base" data-layouts="Apate,Laverna">Pirate Base</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Mining Outpost" data-layouts="Euthenia,Phorcys">Mining Outpost</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Orbital" data-subtype="Relay Station" data-layouts="Enodia,Ichnaea">Relay Station</div>
+          </div>
+              
+          <div id="surfacePortsDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Surface Ports</h4>
+            <h6 class="mt-4">Tier 3 Ports</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Planetary Port" data-layouts="Zeus,Hera,Poseidon,Aphrodite">Planetary Port</div>
+            <h6 class="mt-4">Tier 1 Ports</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Outpost Civilian" data-layouts="Hestia,Decima,Atropos,Nona,Lachesis,Clotho">Outpost Civilian</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Outpost Industrial" data-layouts="Hephaestus,Opis,Ponos,Tethys,Bia,Mefitis">Outpost Industrial</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Outpost Scientific" data-layouts="Necessitas,Ananke,Fauna,Providentia,Antevorta,Porrima">Outpost Scientific</div>
+          </div>
+          
+          <div id="hubsDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Hubs</h4>  
+            <h6 class="mt-4">Tier 2 Hubs</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Extraction Hub" data-layouts="Tartarus">Extraction Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Civilian Hub" data-layouts="Aegle">Civilian Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Exploration Hub" data-layouts="Tellus A">Exploration Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Outpost Hub" data-layouts="Io">Outpost Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Scientific Hub" data-layouts="Athena,Caelus">Scientific Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Military Hub" data-layouts="Alala,Ares">Military Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Refinery Hub" data-layouts="Silenus">Refinery Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="High Tech Hub" data-layouts="Janus">High Tech Hub</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Industrial Hub" data-layouts="Molae,Tellus B,Eunostus">Industrial Hub</div>
+          </div>
+                        
+          <div id="settlementsDrawer" class="palette-scroll closed">
+            <h4 class="text-light">Settlements</h4>
+            <h6 class="mt-4">Tier 2 Settlements</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Agriculture Settlement L" data-layouts="Ceres (L),Fornax (L)">Agriculture Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Extraction Settlement L" data-layouts="Erebus (L),Aerecura (L)">Extraction Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Industrial Settlement L" data-layouts="Gaea (L)">Industrial Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Military Settlement L" data-layouts="Minerva (L)">Military Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Research Bio Settlement L" data-layouts="Chronos (L)">Research Bio Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Research Bio Settlement M" data-layouts="Asteria (S),Caerus (S)">Research Bio Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Research Bio Settlement S" data-layouts="Pheobe (S)">Research Bio Settlement (Small)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Tourism Settlement L" data-layouts="Fufluns (L)">Tourism Settlement (Large)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Tourism Settlement M" data-layouts="Comos (L),Gelos (L)">Tourism Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Tourism Settlement S" data-layouts="Aergia (M)">Tourism Settlement (Small)</div>
+            <h6 class="mt-4">Tier 1 Settlements</h6>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Agriculture Settlement M" data-layouts="Picumnus (L),Annona (S)">Agriculture Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Agriculture Settlement S" data-layouts="Consus (S)">Agriculture Settlement (Small)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Extraction Settlement M" data-layouts="Mantus (M),Orcus (L)">Extraction Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Extraction Settlement S" data-layouts="Ourea (S)">Extraction Settlement (Small)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Industrial Settlement M" data-layouts="Meteope (L),Palici (L),Minthe (M)">Industrial Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Industrial Settlement S" data-layouts="Fontus (S)">Industrial Settlement (Small)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Military Settlement M" data-layouts="Bellona (S),Enyo (M),Polemos (M)">Military Settlement (Medium)</div>
+            <div class="facility-type palette-drag" draggable="true" data-type="Surface" data-subtype="Military Settlement S" data-layouts="Ioke (M)">Military Settlement (Small)</div>
+          </div>  
+        </div>
+        
+        <div id="buildOrderDrawer" class="palette-drawer closed">
+          <div class="palette-scroll">
+            <h4 class="text-light">Build Order</h4>
+            <ul id="buildOrderList" class="list-unstyled mb-2"></ul>
+            <small class="text-muted">Drag ☰ to reorder, ✕ to remove.</small>
+          </div>
+        </div>
+
+    <!-- Main content area -->
+    <div id="mainContent" class="flex-grow-1 px-4 py-4">
+      <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap" id="headerWithStats">
+        <h1 class="mb-0">ED:KIT - Colony Planner</h1>
+        <div id="systemStatsBar" class="d-flex flex-wrap gap-3 text-end">
+          <div class="badge bg-secondary">T2 Points: <span id="stat-t2">0</span></div>
+          <div class="badge bg-secondary">T3 Points: <span id="stat-t3">0</span></div>
+          <div class="badge bg-secondary">Security: <span id="stat-security">0</span></div>
+          <div class="badge bg-secondary">Tech Level: <span id="stat-tech">0</span></div>
+          <div class="badge bg-secondary">Wealth: <span id="stat-wealth">0</span></div>
+          <div class="badge bg-secondary">Standard of Living: <span id="stat-living">0</span></div>
+          <div class="badge bg-secondary">Development Level: <span id="stat-dev">0</span></div>
+        </div>
+      </div>
+      <div id="systemMap" class="system-map-wrapper"></div>
+      <div id="newRowDropZone" class="drop-zone">Drag here to create a new row</div>
+    </div>
+  </div>
+
+  <script>
+    let isDroppingToNewRow = false;
+    let nextSlotId = 1;
+    
+    // ─── Build-Order state ───────────────────────────────────
+    const buildOrder = [];
+    
+    function renderBuildOrder() {
+      const ul = document.getElementById('buildOrderList');
+      ul.innerHTML = '';
+      buildOrder.forEach((item, idx) => {
+        const li = document.createElement('li');
+        li.className = 'd-flex align-items-center justify-content-between mb-1';
+        li.setAttribute('data-index', idx);
+        
+        if (idx === 0) li.classList.add('primary-port');
+        else            li.classList.remove('primary-port');
+        
+        li.innerHTML = `
+          <span class="drag-handle">☰</span>
+          <span class="bo-name">${item.name}</span>
+          <span class="bo-on"> on ${item.body}</span>
+          <button class="btn btn-sm btn-outline-danger btn-remove">✕</button>
+        `;
+            
+        // ——— NEW remove handler ———
+        li.querySelector('.btn-remove').addEventListener('click', () => {
+          const slot = item.slot;
+          // figure out its index among its siblings
+          const container = slot.parentElement;
+          const slotNum = Array.prototype.indexOf.call(container.children, slot) + 1;
+    
+          // reset it to placeholder
+          slot.className = 'facility-slot placeholder';
+          delete slot.dataset.subtype;
+          delete slot.dataset.customName;
+          slot.innerHTML = `${slot.dataset.slotType} Slot ${slotNum}`;
+    
+          // now remove from buildOrder and rerender
+          buildOrder.splice(idx, 1);
+          renderBuildOrder();
+          recalculateSystemStats();
+        });
+        // ————————————————
+    
+        ul.appendChild(li);
+        const nameSpan = li.querySelector('.bo-name');
+        nameSpan.addEventListener('dblclick', () => {
+          nameSpan.contentEditable = 'true';
+          nameSpan.focus();
+        });
+        nameSpan.addEventListener('blur', () => {
+          nameSpan.contentEditable = 'false';
+          const newName = nameSpan.textContent.trim();
+          if (newName && newName !== item.name) {
+            // 1) update buildOrder state
+            item.name = newName;
+            // 2) update the actual slot on the map
+            const slotEl = item.slot.querySelector('.slot-label');
+            if (slotEl) slotEl.textContent = newName;
+          }
+          renderBuildOrder();
+          recalculateSystemStats();
+        });
+      });
+    }
+    
+    // enable drag-to-reorder
+    Sortable.create(document.getElementById('buildOrderList'), {
+      handle: '.drag-handle',
+      animation: 150,
+      onEnd: evt => {
+        const [moved] = buildOrder.splice(evt.oldIndex, 1);
+        buildOrder.splice(evt.newIndex, 0, moved);
+        renderBuildOrder();
+        recalculateSystemStats();
+      }
+    }); 
+        
+    document.addEventListener('dragend', () => {
+      updateAllNames();
+      isDroppingToNewRow = false;
+    });
+    
+    const validBodyTypes = [
+      "Star", "Blackhole", "Neutron Star", "White Dwarf", "Asteroid Belt", "Gas Giant",
+      "Ammonia World", "Earth-like World", "Water World", "Metallic Body",
+      "Rocky Body", "Rocky Ice Body", "Icy Body"
+    ];
+
+    const sharedBodyGroup = {
+      name: 'bodies',
+      pull: true,
+      put: true
+    };    
+    
+    function createAttributes(type) {
+      const section = document.createElement('div');
+      section.className = 'p-2 mt-2 border-top';
+      section.style.backgroundColor = '#1c1c1c';
+    
+      const addCheckbox = (labelText) => {
+        const label = document.createElement('label');
+        label.className = 'form-check form-check-inline me-3';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'form-check-input me-1';
+        input.name = labelText;
+        const span = document.createElement('span');
+        span.textContent = labelText;
+        label.appendChild(input);
+        label.appendChild(span);
+        return label;
+      };
+
+      const addSelect = (labelText, options) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mb-1';
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        label.style.marginRight = '6px';
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm d-inline-block';
+        select.name = labelText;
+        select.style.width = 'auto';
+        options.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt;
+          option.textContent = opt;
+          select.appendChild(option);
+        });
+        wrapper.appendChild(label);
+        wrapper.appendChild(select);
+        return wrapper;
+      };
+
+      if (type === 'Asteroid Belt') {
+        section.appendChild(addSelect('Type', ['Icy', 'Metallic', 'Rocky']));
+        section.appendChild(addSelect('Reserves', ['Pristine', 'Great', 'Low', 'Depleted']));
+      }
+    
+      if ([
+        'Gas Giant', 'Ammonia World', 'Earth-like World', 'Water World',
+        'Metallic Body', 'Rocky Body', 'Rocky Ice Body', 'Icy Body'
+      ].includes(type)) {
+        section.appendChild(addCheckbox('Terraformable'));
+        section.appendChild(addCheckbox('Tidally Locked'));
+        section.appendChild(addCheckbox('Volcanism'));
+        section.appendChild(addCheckbox('Life'));
+        section.appendChild(addSelect('Planet Reserves', ['Pristine', 'Great', 'Low', 'Depleted']));
+    
+        const ringInputWrapper = document.createElement('div');
+        ringInputWrapper.className = 'mb-2';
+        const ringLabel = document.createElement('label');
+        ringLabel.textContent = 'Number of Rings: ';
+        const ringInput = document.createElement('input');
+        ringInput.type = 'number';
+        ringInput.min = 0;
+        ringInput.value = 0;
+        ringInput.name = 'Number of Rings';
+        ringInput.className = 'form-control form-control-sm d-inline-block';
+        ringInput.style.width = '80px';
+        ringLabel.appendChild(ringInput);
+        ringInputWrapper.appendChild(ringLabel);
+        section.appendChild(ringInputWrapper);
+    
+        const ringSettingsContainer = document.createElement('div');
+        section.appendChild(ringSettingsContainer);
+    
+        const updateRings = () => {
+          ringSettingsContainer.innerHTML = '';
+          const count = parseInt(ringInput.value) || 0;
+          for (let i = 0; i < count; i++) {
+            const ringRow = document.createElement('div');
+            ringRow.className = 'd-flex align-items-end gap-2 flex-wrap mb-2';
+    
+            const ringHeader = document.createElement('strong');
+            ringHeader.textContent = `Ring ${String.fromCharCode(65 + i)}:`;
+            ringRow.appendChild(ringHeader);
+    
+            const typeSelect = addSelect('Type', ['Icy', 'Metallic', 'Rocky']);
+            const reservesSelect = addSelect('Reserves', ['Pristine', 'Great', 'Low', 'Depleted']);
+    
+            ringRow.appendChild(typeSelect);
+            ringRow.appendChild(reservesSelect);
+            ringSettingsContainer.appendChild(ringRow);
+            
+            typeSelect.querySelector('select').name     = `Ring ${i+1} Type`;
+            reservesSelect.querySelector('select').name = `Ring ${i+1} Reserves`;
+          }
+        };
+    
+        ringInput.addEventListener('input', updateRings);
+        updateRings();
+      }
+    
+      return section;
+    }
+
+    function createNameLabel(body) {
+      const nameLabel = document.createElement('div');
+      nameLabel.className = 'body-name fw-bold';
+      nameLabel.spellcheck = false;
+      nameLabel.textContent = body.dataset.customName || body.dataset.autoName || '';
+      nameLabel.style.cursor = 'text';
+    
+      // on double-click, make it editable
+      nameLabel.addEventListener('dblclick', () => {
+        nameLabel.contentEditable = 'true';
+        nameLabel.focus();
+      });
+    
+      // when you finish editing, commit or roll back
+      nameLabel.addEventListener('blur', () => {
+        if (!nameLabel.isContentEditable) return;
+        const newName = nameLabel.textContent.trim();
+        if (newName && newName !== body.dataset.autoName) {
+          body.dataset.customName = newName;
+        } else {
+          delete body.dataset.customName;
+        }
+        // show the final name
+        nameLabel.textContent = body.dataset.customName || body.dataset.autoName;
+        nameLabel.contentEditable = 'false';
+    
+        // and sync any Build-Order entries for this body
+        buildOrder.forEach(entry => {
+          if (entry.slot.closest('.celestial-body') === body) {
+            entry.body = nameLabel.textContent;
+          }
+        });
+        renderBuildOrder();
+      });
+    
+      return nameLabel;
+    }
+    
+    function restoreBuildOrder(saved) {
+      buildOrder.length = 0;
+      saved.buildOrder.forEach(item => {
+        const slot = document.querySelector(
+          `.facility-slot[data-slot-id="${item.slotId}"]`
+        );
+        if (!slot) return;
+        const label = slot.querySelector('.slot-label');
+        if (label) label.textContent = item.name;
+        buildOrder.push({ slot, name: item.name, body: item.body });
+      });
+      renderBuildOrder();
+    }
+
+    function createBody(type) {
+      const body = document.createElement('div');
+      body.className = 'celestial-body';
+      body.id = 'body-' + Date.now() + Math.random().toString(36).slice(2, 8);
+      body.setAttribute('data-type', type);
+
+      body.setAttribute('draggable', 'true');
+      body.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', body.getAttribute('data-type'));
+        e.dataTransfer.setData('from-celestial', 'true');
+        e.dataTransfer.setData('source-id', body.id);
+      });
+      
+      const nameLabel = createNameLabel(body);
+      body.appendChild(nameLabel);
+    
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'body-type-label';
+      typeLabel.textContent = type;
+      body.appendChild(typeLabel);
+    
+      const starTypes = ['Star', 'Blackhole', 'Neutron Star', 'White Dwarf'];
+      const surfaceTypes = ['Metallic Body', 'Rocky Body', 'Rocky Ice Body', 'Icy Body'];
+    
+      const showAttributes = !starTypes.includes(type);
+      const showSurfaceSlots = surfaceTypes.includes(type);
+    
+      if (showAttributes) {
+        const attrToggle = document.createElement('button');
+        attrToggle.textContent = 'Attributes';
+        attrToggle.className = 'btn btn-sm btn-secondary mt-2';
+        body.appendChild(attrToggle);
+    
+        const attrSection = createAttributes(type);
+        attrSection.style.display = 'none';
+        attrSection.classList.add('attributes-section');
+        attrToggle.addEventListener('click', () => {
+          attrSection.style.display = attrSection.style.display === 'none' ? 'block' : 'none';
+        });
+        body.appendChild(attrSection);
+      }
+    
+      const slotsToggle = document.createElement('button');
+      slotsToggle.textContent = 'Slots';
+      slotsToggle.className = 'btn btn-sm btn-secondary mt-2';
+      body.appendChild(slotsToggle);
+    
+      const slotsSection = document.createElement('div');
+      slotsSection.className = 'p-2 mt-2 border-top';
+      slotsSection.style.backgroundColor = '#1c1c1c';
+      slotsSection.style.display = 'none';
+      slotsSection.classList.add('slots-section');
+      body.appendChild(slotsSection);
+    
+      slotsToggle.addEventListener('click', () => {
+        slotsSection.style.display = slotsSection.style.display === 'none' ? 'block' : 'none';
+      });
+    
+      const addSlotControls = (label, container) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mb-2';
+        const labelEl = document.createElement('label');
+        labelEl.textContent = `${label} Slots: `;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = 0;
+        input.value = 0;
+        input.name = label + ' Slots';
+        input.className = 'form-control form-control-sm d-inline-block';
+        input.style.width = '80px';
+        labelEl.appendChild(input);
+        wrapper.appendChild(labelEl);
+        slotsSection.appendChild(wrapper);
+        slotsSection.appendChild(container);
+       
+        const slotType = label; // 'Orbital' or 'Surface'
+       
+        input.addEventListener('input', () => {
+          const newCount = parseInt(input.value) || 0;
+          const slots    = Array.from(container.children);
+          const oldCount = slots.length;
+        
+          // 1) If they increased the number, append that many new placeholders:
+          if (newCount > oldCount) {
+            for (let i = oldCount; i < newCount; i++) {
+              const slot = document.createElement('div');
+              slot.className = 'facility-slot placeholder';
+              slot.dataset.slotId   = nextSlotId++;
+              slot.dataset.slotType = label;      // 'Orbital' or 'Surface'
+              slot.textContent      = `${label} Slot ${i+1}`;
+              setupSlotListeners(slot);
+              container.appendChild(slot);
+            }
+        
+          // 2) If they *decreased*, remove only the *extra* slots:
+          } else if (newCount < oldCount) {
+            // remove from highest index down to avoid re-indexing trouble
+            for (let i = oldCount - 1; i >= newCount; i--) {
+              const slot = slots[i];
+              // if it was filled, purge it from buildOrder
+              const idx = buildOrder.findIndex(it => it.slot === slot);
+              if (idx !== -1) buildOrder.splice(idx,1);
+              slot.remove();
+            }
+          }
+        
+          // 3) finally re-render the build-order & stats
+          renderBuildOrder();
+          recalculateSystemStats();
+        });
+      };
+    
+      const orbitalContainer = document.createElement('div');
+      orbitalContainer.className = 'd-flex flex-wrap gap-2 mb-2';
+    
+      const surfaceContainer = document.createElement('div');
+      surfaceContainer.className = 'd-flex flex-wrap gap-2 mb-2';
+    
+      addSlotControls('Orbital', orbitalContainer);
+      if (showSurfaceSlots) {
+        addSlotControls('Surface', surfaceContainer);
+      }
+    
+      const nested = document.createElement('div');
+      nested.className = 'nested-container';
+      body.appendChild(nested);
+    
+      Sortable.create(nested, {
+        group: sharedBodyGroup,
+        animation: 150,
+        swapThreshold: 0.2,
+        invertSwap: true,
+        onAdd: evt => {
+          const el = evt.item;
+          const type = el.getAttribute('data-type');
+          const fromPalette = el.classList.contains('body-type');
+        
+          if (fromPalette && validBodyTypes.includes(type)) {
+            const newBody = createBody(type);
+            el.replaceWith(newBody);
+          }
+        
+          updateAllNames();
+        }
+      });
+    
+        body.addEventListener('contextmenu', e => {
+          if (!body.contains(e.target)) return; // Ignore if the event is from outside this body
+          if (e.target.closest('.facility-slot') || e.target.closest('.celestial-body') !== body) return; // Don't delete if clicking on a child
+          e.preventDefault();
+          body.querySelectorAll('.facility-slot.filled').forEach(slot => {
+            const idx = buildOrder.findIndex(it => it.slot === slot);
+            if (idx !== -1) buildOrder.splice(idx, 1);
+          });
+          renderBuildOrder();
+          recalculateSystemStats();
+          body.remove();
+          setTimeout(cleanupEmptyRows, 50);
+          updateAllNames();
+        });
+    
+      updateAllNames();
+      return body;
+    }
+
+    function createRow() {
+      const row = document.createElement('div');
+      row.className = 'system-map-row';
+    
+      Sortable.create(row, {
+        group: {
+          name: 'row-bodies',
+          pull: true,
+          put: true
+        },
+        animation: 150,
+        swapThreshold: 0.2,
+        invertSwap: true,
+        onAdd: evt => {
+          if (isDroppingToNewRow) return;
+          const el = evt.item;
+          const type = el.getAttribute('data-type');
+          const fromPalette = el.classList.contains('body-type');
+        
+          if (fromPalette && validBodyTypes.includes(type)) {
+            const newBody = createBody(type);
+            el.replaceWith(newBody);
+          }
+      
+          updateAllNames();
+          recalculateSystemStats();
+          setTimeout(cleanupEmptyRows, 50); // 🔄 Added this line
+        }
+      });
+    
+      const container = document.createElement('div');
+      container.className = 'row-container';
+    
+      const handle = document.createElement('div');
+      handle.className = 'row-handle';
+      handle.setAttribute('data-drag-handle', '');
+    
+      const deleteBtn = document.createElement('div');
+      deleteBtn.className = 'row-delete';
+      deleteBtn.innerHTML = '&times;';
+      deleteBtn.addEventListener('click', () => container.remove());
+    
+      container.appendChild(handle);
+      container.appendChild(row);
+      container.appendChild(deleteBtn);
+    
+      return container;
+    }
+
+    function cleanupEmptyRows() {
+      document.querySelectorAll('.row-container').forEach(container => {
+        const row = container.querySelector('.system-map-row');
+        if (!row || row.children.length === 0) container.remove();
+      });
+    }
+    
+    function updateAllNames() {
+      const rows = document.querySelectorAll('.system-map-row');
+    
+      rows.forEach((row, rowIndex) => {
+        const bodies = Array.from(row.children);
+        const baseName = String.fromCharCode(65 + rowIndex); // A, B, C...
+    
+        let beltCount = 0;
+        let nonBeltIndex = 0;
+    
+        bodies.forEach(body => {
+          const type = body.getAttribute('data-type');
+          let name;
+    
+          if (type === 'Asteroid Belt') {
+            const beltSuffix = String.fromCharCode(65 + beltCount); // A, B, C...
+            name = `${baseName} ${beltSuffix} Belt`;
+            beltCount++;
+          } else {
+            name = nonBeltIndex === 0 ? baseName : `${baseName} ${nonBeltIndex}`;
+            nonBeltIndex++;
+          }
+    
+          assignName(body, name);
+        });
+      });
+      recalculateSystemStats();
+      // Sync every entry’s `.body` to whatever the map currently shows:
+      buildOrder.forEach(entry => {
+        const b = entry.slot.closest('.celestial-body');
+        entry.body = b.querySelector('.body-name').textContent;
+      });
+      renderBuildOrder();
+    }
+
+    function assignName(body, autoName) {
+      body.dataset.autoName = autoName;
+      const nameLabel = body.querySelector('.body-name');
+      if (!nameLabel) return;
+    
+      // only overwrite the label if the user hasn't set a customName
+      if (!body.dataset.customName) {
+        nameLabel.textContent = autoName;
+      }
+    
+      // recurse into nested bodies as before...
+      const nested = body.querySelector('.nested-container');
+      if (!nested) return;
+      Array.from(nested.children).forEach((child, idx) => {
+        const suffix = /\d$/.test(autoName) ? String.fromCharCode(65 + idx) : idx + 1;
+        assignName(child, `${autoName} ${suffix}`);
+      });
+    }
+
+    document.addEventListener('dragstart', e => {
+      const el = e.target;
+      if (el.classList?.contains('celestial-body')) {
+        el.classList.add('dragging');
+        const type = el.getAttribute('data-type');
+        if (type) {
+          e.dataTransfer.setData('text/plain', type);
+          e.dataTransfer.setData('from-celestial', 'true');
+          e.dataTransfer.setData('source-id', el.id);
+        }
+      }
+    });
+
+    // Enable dragging celestial bodies from palette
+    ['#starDrawer', '#planetDrawer'].forEach(selector => {
+      const container = document.querySelector(selector);
+      Sortable.create(container, {
+        group: {
+          name: 'bodies',
+          pull: 'clone',
+          put: false
+        },
+        sort: false,
+        animation: 150,
+        ghostClass: 'dragging-ghost',
+        onClone: (evt) => {
+          // Fallback in case `onStart` doesn't fire or `originalEvent` is missing
+          const el = evt.clone;
+          const type = el.getAttribute('data-type');
+          el.setAttribute('draggable', 'true');
+          el.addEventListener('dragstart', e => {
+          
+            e.dataTransfer.clearData();
+
+            const type    = el.getAttribute('data-type');      // "Orbital" or "Surface"
+            const subtype = el.getAttribute('data-subtype');
+            const layouts = el.getAttribute('data-layouts');
+
+            e.dataTransfer.setData('facility-slot-type', type);
+            e.dataTransfer.setData('facility-type', subtype);
+            e.dataTransfer.setData('facility-layouts', layouts);
+
+            e.dataTransfer.setData('text/plain', type);
+            e.dataTransfer.setData('from-celestial', 'true');
+            e.dataTransfer.setData('facility-type', type); // fallback
+            e.dataTransfer.setData('source-id', el.id || ('palette-' + type + '-' + Date.now()));
+          });
+        }
+      });
+    });
+
+    document.querySelectorAll('.body-type').forEach(el => {
+      el.setAttribute('draggable', 'true');
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.clearData();
+
+        const type    = el.getAttribute('data-type');      // "Orbital" or "Surface"
+        const subtype = el.getAttribute('data-subtype');
+        const layouts = el.getAttribute('data-layouts');
+
+        e.dataTransfer.setData('facility-slot-type', type);
+        e.dataTransfer.setData('facility-type', subtype);
+        e.dataTransfer.setData('facility-layouts', layouts);
+        e.dataTransfer.setData('text/plain', type);
+        e.dataTransfer.setData('from-celestial', 'true');
+        e.dataTransfer.setData('source-id', el.id || ('palette-' + type + '-' + Date.now()));
+      });
+    });
+
+    Sortable.create(document.getElementById('systemMap'), {
+      handle: '.row-handle',
+      animation: 150,
+      draggable: '.row-container',
+      onEnd: updateAllNames
+    });
+
+    const initialRow = createRow();
+    document.getElementById('systemMap').appendChild(initialRow);
+    updateAllNames();
+    
+    const paletteDrawer = document.getElementById('paletteDrawer');
+      
+    const newRowDropZone = document.getElementById('newRowDropZone');
+
+      newRowDropZone.addEventListener('dragenter', () => {
+        isDroppingToNewRow = true;
+      });
+      
+      newRowDropZone.addEventListener('dragleave', () => {
+        isDroppingToNewRow = false;
+      });
+        
+      newRowDropZone.addEventListener('dragover', e => e.preventDefault());
+       
+      newRowDropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        let type = e.dataTransfer.getData('text/plain');
+        if (!type) {
+          type = e.dataTransfer.getData('facility-type'); // fallback for Star bug
+        }
+        const sourceId = e.dataTransfer.getData('source-id');
+        const fromCelestial = e.dataTransfer.getData('from-celestial') === 'true';
+        
+        isDroppingToNewRow = false;
+      
+        if (!fromCelestial || !validBodyTypes.includes(type)) return;
+        
+        const newRow = createRow();
+        const rowContent = newRow.querySelector('.system-map-row');
+        const newBody = createBody(type);
+        rowContent.appendChild(newBody);
+        
+        const original = document.getElementById(sourceId);
+        if (original && original.classList.contains('celestial-body')) {
+          original.remove();
+        }
+       
+        document.getElementById('systemMap').appendChild(newRow);
+        updateAllNames();
+        recalculateSystemStats();
+      });
+    
+    const drawerButtons = [
+      { buttonId: 'toggleSaves', drawerId: 'savesDrawer' },
+      { buttonId: 'togglePalette', drawerId: 'bodyTypesDrawer' },
+      { buttonId: 'toggleOrbitalPorts', drawerId: 'orbitalPortsDrawer' },
+      { buttonId: 'toggleOrbitalFacilities', drawerId: 'orbitalFacilitiesDrawer' },
+      { buttonId: 'toggleSurfacePorts', drawerId: 'surfacePortsDrawer' },
+      { buttonId: 'toggleHubs', drawerId: 'hubsDrawer' },
+      { buttonId: 'toggleSettlements', drawerId: 'settlementsDrawer' }
+    ];
+    
+    drawerButtons.forEach(({ buttonId, drawerId }) => {
+      const button = document.getElementById(buttonId);
+      const drawer = document.getElementById(drawerId);
+    
+      button.addEventListener('click', () => {
+        const isClosed = drawer.classList.contains('closed');
+    
+        document
+          .querySelectorAll('#paletteDrawer .palette-scroll')
+          .forEach(d => d.classList.add('closed'));
+        
+        [
+          'toggleSaves',
+          'togglePalette',
+          'toggleOrbitalPorts',
+          'toggleOrbitalFacilities',
+          'toggleSurfacePorts',
+          'toggleHubs',
+          'toggleSettlements'
+        ].forEach(id => {
+          document.getElementById(id).classList.remove('active');
+        });
+    
+        if (isClosed) {
+          paletteDrawer.classList.remove('closed');
+          drawer.classList.remove('closed');
+          button.classList.add('active');
+        } else {
+          drawer.classList.add('closed');
+    
+          // If no other drawers are open, close the panel
+          const anyOpen = [...document.querySelectorAll('#paletteDrawer .palette-scroll')]
+            .some(d => !d.classList.contains('closed'));
+          if (!anyOpen) {
+            paletteDrawer.classList.add('closed');
+          }
+        }
+      });
+    });
+    
+    document.getElementById('toggleBuildOrder').addEventListener('click', () => {
+      const btn    = document.getElementById('toggleBuildOrder');
+      const drawer = document.getElementById('buildOrderDrawer');
+      drawer.classList.toggle('closed');
+      btn.classList.toggle('active');
+    });
+    
+    document.querySelectorAll('.facility-type').forEach(el => {
+      el.setAttribute('draggable', 'true');
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.clearData();
+    
+        const type    = el.getAttribute('data-type');
+        const subtype = el.getAttribute('data-subtype');
+        const layouts = el.getAttribute('data-layouts');
+    
+        e.dataTransfer.setData('facility-slot-type', type);
+        e.dataTransfer.setData('facility-type',      subtype);
+        e.dataTransfer.setData('facility-layouts',   layouts);
+      });
+    });
+
+    const facilityStats = {
+      "Coriolis Starport": {
+        "t2": -3,
+        "t3": 1,
+        "security": -2,
+        "tech": 2,
+        "wealth": 3,
+        "living": 3,
+        "dev": 3
+      },
+      "Asteroid Base": {
+        "t2": -3,
+        "t3": 1,
+        "security": -1,
+        "tech": 3,
+        "wealth": 5,
+        "living": -4,
+        "dev": 7
+      },
+      "Ocellus Starport": {
+        "t2": 0,
+        "t3": -6,
+        "security": -3,
+        "tech": 7,
+        "wealth": 8,
+        "living": 5,
+        "dev": 9
+      },
+      "Orbis Starport": {
+        "t2": 0,
+        "t3": -6,
+        "security": -3,
+        "tech": 7,
+        "wealth": 8,
+        "living": 5,
+        "dev": 9
+      },
+      "Commercial Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": -1,
+        "tech": 0,
+        "wealth": 3,
+        "living": 5,
+        "dev": 0
+      },
+      "Industrial Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 3,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Criminal Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": -2,
+        "tech": 0,
+        "wealth": 3,
+        "living": 0,
+        "dev": 0
+      },
+      "Civilian Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": -1,
+        "tech": 0,
+        "wealth": 1,
+        "living": 2,
+        "dev": 1
+      },
+      "Scientific Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 3,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Military Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": 2,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Satellite": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 1,
+        "living": 2,
+        "dev": 1
+      },
+      "Comm Station": {
+        "t2": 1,
+        "t3": 0,
+        "security": 1,
+        "tech": 3,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Space Farm": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 5,
+        "dev": 1
+      },
+      "Pirate Base": {
+        "t2": 1,
+        "t3": 0,
+        "security": -4,
+        "tech": 0,
+        "wealth": 4,
+        "living": 0,
+        "dev": 0
+      },
+      "Mining Outpost": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 4,
+        "living": -2,
+        "dev": 0
+      },
+      "Relay Station": {
+        "t2": 1,
+        "t3": 0,
+        "security": 1,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 1
+      },
+      "Military Installation": {
+        "t2": -1,
+        "t3": 1,
+        "security": 7,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Security Station": {
+        "t2": -1,
+        "t3": 1,
+        "security": 9,
+        "tech": 0,
+        "wealth": 0,
+        "living": 3,
+        "dev": 3
+      },
+      "Government Installation": {
+        "t2": -1,
+        "t3": 1,
+        "security": 2,
+        "tech": 0,
+        "wealth": 0,
+        "living": 7,
+        "dev": 3
+      },
+      "Medical Installation": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 3,
+        "wealth": 0,
+        "living": 5,
+        "dev": 0
+      },
+      "Research Station": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 8,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Tourist Installation": {
+        "t2": -1,
+        "t3": 1,
+        "security": -3,
+        "tech": 0,
+        "wealth": 6,
+        "living": 0,
+        "dev": 3
+      },
+      "Space Bar": {
+        "t2": -1,
+        "t3": 1,
+        "security": -2,
+        "tech": 0,
+        "wealth": 3,
+        "living": 3,
+        "dev": 0
+      },
+      "Outpost Civilian": {
+        "t2": 1,
+        "t3": 0,
+        "security": -2,
+        "tech": 0,
+        "wealth": 0,
+        "living": 3,
+        "dev": 0
+      },
+      "Outpost Industrial": {
+        "t2": 1,
+        "t3": 0,
+        "security": -1,
+        "tech": 0,
+        "wealth": 3,
+        "living": 0,
+        "dev": 0
+      },
+      "Outpost Scientific": {
+        "t2": 1,
+        "t3": 0,
+        "security": -1,
+        "tech": 5,
+        "wealth": 0,
+        "living": 0,
+        "dev": 1
+      },
+      "Planetary Port": {
+        "t2": 0,
+        "t3": -6,
+        "security": -3,
+        "tech": 5,
+        "wealth": 5,
+        "living": 7,
+        "dev": 10
+      },
+      "Agriculture Settlement S": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 3,
+        "dev": 0
+      },
+      "Agriculture Settlement M": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 7,
+        "dev": 0
+      },
+      "Agriculture Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 10,
+        "dev": 0
+      },
+      "Extraction Settlement S": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 3,
+        "living": 0,
+        "dev": 0
+      },
+      "Extraction Settlement M": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 5,
+        "living": 0,
+        "dev": 0
+      },
+      "Extraction Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": 0,
+        "tech": 2,
+        "wealth": 8,
+        "living": -2,
+        "dev": 0
+      },
+      "Industrial Settlement S": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Industrial Settlement M": {
+        "t2": 1,
+        "t3": 0,
+        "security": 0,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 6
+      },
+      "Industrial Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": 0,
+        "tech": 0,
+        "wealth": 3,
+        "living": 0,
+        "dev": 9
+      },
+      "Military Settlement S": {
+        "t2": 1,
+        "t3": 0,
+        "security": 2,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Military Settlement M": {
+        "t2": 1,
+        "t3": 0,
+        "security": 4,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Military Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": 7,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Research Bio Settlement S": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 3,
+        "wealth": 0,
+        "living": 0,
+        "dev": 1
+      },
+      "Research Bio Settlement M": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 7,
+        "wealth": 0,
+        "living": 0,
+        "dev": 1
+      },
+      "Research Bio Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": 0,
+        "tech": 10,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Tourism Settlement S": {
+        "t2": -1,
+        "t3": 1,
+        "security": -1,
+        "tech": 0,
+        "wealth": 1,
+        "living": 0,
+        "dev": 0
+      },
+      "Tourism Settlement M": {
+        "t2": -1,
+        "t3": 1,
+        "security": -1,
+        "tech": 0,
+        "wealth": 3,
+        "living": 0,
+        "dev": 0
+      },
+      "Tourism Settlement L": {
+        "t2": -1,
+        "t3": 2,
+        "security": -2,
+        "tech": 0,
+        "wealth": 5,
+        "living": 0,
+        "dev": 0
+      },
+      "Extraction Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 0,
+        "wealth": 10,
+        "living": -4,
+        "dev": 3
+      },
+      "Civilian Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": -3,
+        "tech": 0,
+        "wealth": 0,
+        "living": 3,
+        "dev": 3
+      },
+      "Exploration Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": -1,
+        "tech": 7,
+        "wealth": 0,
+        "living": 0,
+        "dev": 3
+      },
+      "Outpost Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": -2,
+        "tech": 0,
+        "wealth": 0,
+        "living": 3,
+        "dev": 3
+      },
+      "Scientific Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 10,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Military Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": 10,
+        "tech": 0,
+        "wealth": 0,
+        "living": 0,
+        "dev": 0
+      },
+      "Refinery Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": -1,
+        "tech": 3,
+        "wealth": 5,
+        "living": -2,
+        "dev": 7
+      },
+      "High Tech Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": -2,
+        "tech": 10,
+        "wealth": 3,
+        "living": 0,
+        "dev": 0
+      },
+      "Industrial Hub": {
+        "t2": -1,
+        "t3": 1,
+        "security": 0,
+        "tech": 3,
+        "wealth": 5,
+        "living": -4,
+        "dev": 3
+      }
+    };
+    
+    Sortable.create(document.getElementById('buildOrderList'), {
+      group: { name: 'buildOrder', pull: true, put: false },
+      handle: '.drag-handle',
+      animation: 150,
+      draggable: 'li',
+      onEnd: evt => {
+        const [moved] = buildOrder.splice(evt.oldIndex, 1);
+        buildOrder.splice(evt.newIndex, 0, moved);
+        renderBuildOrder();
+        recalculateSystemStats();
+      }
+    });
+
+    function recalculateSystemStats() {
+      // reset totals
+      let totals   = { t2:0, t3:0, security:0, tech:0, wealth:0, living:0, dev:0 };
+      let seenPorts = 0;
+    
+      buildOrder.forEach((entry, idx) => {
+        const subtype = entry.slot.dataset.subtype;
+        if (!subtype) return;
+        const stats = facilityStats[subtype];
+        if (!stats)   return;
+    
+        const isPrimary = (idx === 0);
+        let entryT2 = stats.t2, entryT3 = stats.t3;
+    
+        // only ports/starports (negative t2 or t3) get the dynamic logic
+        if (stats.t2 < 0 || stats.t3 < 0) {
+          if (isPrimary) {
+            // primary port costs zero, and does not count toward seenPorts
+            entryT2 = Math.max(0, stats.t2);
+            entryT3 = Math.max(0, stats.t3);
+          } else {
+            // dynamic T2 cost if it's a T2 port
+            if (stats.t2 < 0) {
+              entryT2 = -Math.max(3, 2*seenPorts + 1);
+            }
+            // dynamic T3 cost if it's a T3 port/starport
+            if (stats.t3 < 0) {
+              entryT3 = -Math.max(6, 6*seenPorts);
+            }
+            seenPorts++;
+          }
+        }
+    
+        totals.t2       += entryT2;
+        totals.t3       += entryT3;
+        totals.security += stats.security;
+        totals.tech     += stats.tech;
+        totals.wealth   += stats.wealth;
+        totals.living   += stats.living;
+        totals.dev      += stats.dev;
+      });
+    
+      // write back to the UI
+      document.getElementById('stat-t2').textContent      = totals.t2;
+      document.getElementById('stat-t3').textContent      = totals.t3;
+      document.getElementById('stat-security').textContent= totals.security;
+      document.getElementById('stat-tech').textContent    = totals.tech;
+      document.getElementById('stat-wealth').textContent  = totals.wealth;
+      document.getElementById('stat-living').textContent  = totals.living;
+      document.getElementById('stat-dev').textContent     = totals.dev;
+    }
+
+    function getPrimaryPortEntry() {
+      return buildOrder.length > 0
+        ? buildOrder[0]
+        : null;
+    }
+
+    function serializeBody(body) {
+      // 1) Base info
+      const data = {
+        type:       body.dataset.type,
+        customName: body.dataset.customName || null,
+        attributes: {},      // will fill in next
+        slots: [],           // <—— we’ll push _every_ slot here
+        children: []         // then recurse
+      };
+    
+      // 2) Attributes
+      body
+        .querySelectorAll('.attributes-section input, .attributes-section select')
+        .forEach(el => {
+          data.attributes[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+        });
+    
+      // 3) **Every** slot (placeholder _and_ filled), in DOM order
+      const slotEls = body.querySelectorAll(':scope > .slots-section .facility-slot');
+      slotEls.forEach(slot => {
+        data.slots.push({
+          slotId:     slot.dataset.slotId,
+          slotType:   slot.dataset.slotType,
+          // null if it was never filled
+          subtype:    slot.dataset.subtype || null,
+          customName: slot.dataset.customName || null,
+          layout:     slot.querySelector('select')?.value || null
+        });
+      });
+      
+      // 4) Capture any nested bodies
+      const nested = body.querySelector('.nested-container');
+      if (nested) {
+        Array.from(nested.children)
+          .filter(c => c.classList.contains('celestial-body'))
+          .forEach(child => {
+            data.children.push(serializeBody(child));
+          });
+      }
+
+      return data;
+    }
+
+  // ─── 2) SERIALIZE THE ENTIRE MAP ──────────────────────────────────────────────
+    function getState() {
+      return {
+        rows: Array.from(document.querySelectorAll('.system-map-row')).map(row =>
+          Array.from(row.children).map(serializeBody)
+        ),
+        buildOrder: buildOrder.map(entry => ({
+          slotId: entry.slot.dataset.slotId,
+          name:   entry.name,
+          body:   entry.body
+        }))
+      };
+    }
+
+  // ─── 3) BUILD A BODY FROM SERIALIZED DATA ────────────────────────────────────
+    function buildBodyFromData(d) {
+      // 1. Create the shell
+      const body = createBody(d.type);
+    
+      // 2. Reapply customName
+      if (d.customName) {
+        body.dataset.customName = d.customName;
+        body.querySelector('.body-name').textContent = d.customName;
+      }
+    
+      // 3. Restore attributes
+      Object.entries(d.attributes).forEach(([name, val]) => {
+        const el = body.querySelector(`[name="${name}"]`);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = val;
+        else el.value = val;
+    
+        // if it’s your ring‐count input, trigger its listener
+        if (name === 'Number of Rings') {
+          el.dispatchEvent(new Event('input'));
+        }
+      });
+    
+      // 4. Restore slots in the exact order saved
+      //    First set the slot‐count inputs so that placeholders appear:
+      ['Orbital', 'Surface'].forEach(slotType => {
+        const input = body.querySelector(`.slots-section input[name="${slotType} Slots"]`);
+        if (!input) return;
+        // count how many of that type in the saved data
+        const count = d.slots.filter(s => s.slotType === slotType).length;
+        input.value = count;
+        input.dispatchEvent(new Event('input'));
+      });
+    
+      // 5. Now *fill* them in sequence, but *per* slotType
+       const slotsByType = {
+       Orbital: d.slots.filter(s => s.slotType === 'Orbital'),
+        Surface: d.slots.filter(s => s.slotType === 'Surface')
+      };
+      let idxByType = { Orbital: 0, Surface: 0 };
+        
+      const slotsSection = body.querySelector(':scope > .slots-section');
+      slotsSection.querySelectorAll('.facility-slot').forEach(slotEl => {
+        const type = slotEl.dataset.slotType;
+        const info = slotsByType[type][ idxByType[type]++ ];
+        slotEl.dataset.slotId = info.slotId;
+        if (!info || !info.subtype) return;  // leave placeholder
+        
+        // convert placeholder → filled
+        slotEl.classList.remove('placeholder');
+        slotEl.classList.add('filled');
+        slotEl.dataset.subtype = info.subtype;
+        if (info.customName) slotEl.dataset.customName = info.customName;
+        slotEl.innerHTML = '';
+        setupSlotListeners(slotEl);
+        
+        // rebuild label
+        const span = document.createElement('span');
+        span.className = 'slot-label';
+        span.textContent = info.customName || info.subtype;
+        slotEl.appendChild(span);
+        
+        // rebuild layout dropdown if needed
+        if (info.layout) {
+          slotEl.appendChild(document.createElement('br'));
+          const sel = document.createElement('select');
+          sel.innerHTML = `<option>${info.layout}</option>`;
+          sel.value     = info.layout;
+          slotEl.appendChild(sel);
+        }
+       
+        // (re-attach your dblclick/blur on span if needed)
+      });
+    
+      // 6. Recurse into children
+      const nested = body.querySelector('.nested-container');
+      d.children.forEach(childData => {
+        nested.appendChild(buildBodyFromData(childData));
+      });
+    
+      return body;
+    }
+
+  // ─── 4) DESTROY & REBUILD THE MAP ────────────────────────────────────────────
+    function setState(state) {
+      const map = document.getElementById('systemMap');
+      map.innerHTML = '';
+      state.rows.forEach(rowData => {
+        const rowContainer = createRow();
+        const rowInner     = rowContainer.querySelector('.system-map-row');
+        rowData.forEach(bodyData => {
+          rowInner.appendChild(buildBodyFromData(bodyData));
+        });
+        map.appendChild(rowContainer);
+      });
+      updateAllNames();
+      recalculateSystemStats();
+    }
+    
+    // ————— multi‐save support —————
+    
+    // helper to fetch our { name:state, … } map or start a fresh one
+    function _loadAllSaves(){
+      try {
+        return JSON.parse(localStorage.getItem('colonyPlannerSaves')) || {};
+      } catch {
+        return {};
+      }
+    }
+    
+    // helper to persist the map
+    function _storeAllSaves(map){
+      localStorage.setItem('colonyPlannerSaves', JSON.stringify(map));
+    }
+    
+    function setupSlotListeners(slot) {
+      const slotType = slot.dataset.slotType;
+      // 1) “right-click → delete” (same as in addSlotControls)
+      slot.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        const idx = buildOrder.findIndex(it => it.slot === slot);
+        if (idx !== -1) buildOrder.splice(idx,1);
+        renderBuildOrder();
+        // reset placeholder…
+        const num = Array.from(slot.parentElement.children).indexOf(slot)+1;
+        slot.className = 'facility-slot placeholder';
+        delete slot.dataset.subtype;
+        delete slot.dataset.customName;
+        slot.textContent = `${slot.dataset.slotType} Slot ${num}`;
+        recalculateSystemStats();
+      });
+    
+      // 2) allow dragging over / dropping facilities back onto an empty slot
+      slot.addEventListener('dragover', e => e.preventDefault());
+      slot.addEventListener('drop', e => {
+        e.preventDefault();
+      
+        // only proceed if this really _is_ a facility drag
+        const sourceSlotType = e.dataTransfer.getData('facility-slot-type');
+        if (!sourceSlotType) return;
+        if (sourceSlotType !== slotType) {
+          alert(`Cannot drop this into a ${slotType} Slot.`);
+          return;
+        }
+      
+        const facilityType = e.dataTransfer.getData('facility-type');
+        const layoutList   = e.dataTransfer.getData('facility-layouts');
+      
+        // your Asteroid-Base / Belt rules...
+        if (facilityType === 'Asteroid Base') {
+          const parentBody = slot.closest('.celestial-body');
+          const parentType = parentBody?.dataset.type;
+          const ringInput  = Array.from(parentBody.querySelectorAll('input[type="number"]'))
+                                .find(i => i.name === 'Number of Rings');
+          const hasRings   = ringInput && +ringInput.value > 0;
+          const ok = (parentType === 'Asteroid Belt' || hasRings)
+                  && !['Star','Blackhole','Neutron Star','White Dwarf'].includes(parentType);
+          if (!ok) {
+            alert('Asteroid Bases can only be placed on Asteroid Belts or planets with rings.');
+            return;
+          }
+        }
+        const parentType = slot.closest('.celestial-body')?.dataset.type;
+        if (parentType === 'Asteroid Belt' && facilityType !== 'Asteroid Base') {
+          alert('Only Asteroid Bases can be placed on Asteroid Belts.');
+          return;
+        }
+        
+        // convert placeholder → filled
+        slot.classList.replace('placeholder','filled');
+        slot.innerHTML = '';
+      
+        // build the label
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'slot-label';
+        labelSpan.textContent = facilityType;
+        slot.appendChild(labelSpan);
+      
+        // build the layout dropdown
+        if (layoutList) {
+          slot.appendChild(document.createElement('br'));
+          const select = document.createElement('select');
+          layoutList.split(',').forEach(opt => {
+            const o = document.createElement('option');
+            o.textContent = opt;
+            select.appendChild(o);
+          });
+          slot.appendChild(select);
+        }
+      
+        // stats & buildOrder
+        slot.dataset.subtype = facilityType;
+        const bodyName = slot.closest('.celestial-body').dataset.autoName;
+        // only add if that slot isn’t already in the build order
+        if (!buildOrder.some(e => e.slot === slot)) {
+          buildOrder.push({ slot, name: facilityType, body: bodyName });
+        }
+        renderBuildOrder();
+      
+        // make the label editable again
+        labelSpan.addEventListener('dblclick', () => {
+          labelSpan.contentEditable = 'true';
+          labelSpan.focus();
+        });
+        labelSpan.addEventListener('blur', () => {
+          const newName = labelSpan.textContent.trim();
+          if (newName && newName !== slot.dataset.subtype) slot.dataset.customName = newName;
+          else delete slot.dataset.customName;
+          labelSpan.textContent = slot.dataset.customName || slot.dataset.subtype;
+          const entry = buildOrder.find(it => it.slot === slot);
+          if (entry) {
+            entry.name = labelSpan.textContent;
+            renderBuildOrder();
+          }
+        });
+        
+        recalculateSystemStats();
+      });
+    
+      // 3) re-attach the dblclick/blur on the <span class="slot-label"> you just rebuilt
+      const label = slot.querySelector('.slot-label');
+      if (label) {
+        label.addEventListener('dblclick', () => {
+          label.contentEditable = 'true';
+          label.focus();
+        });
+        label.addEventListener('blur', () => {
+          const text = label.textContent.trim();
+          if (text && text !== slot.dataset.subtype) slot.dataset.customName = text;
+          else delete slot.dataset.customName;
+          label.textContent = slot.dataset.customName || slot.dataset.subtype;
+          // sync back to buildOrder…
+          const e = buildOrder.find(it => it.slot === slot);
+          if (e) {
+            e.name = label.textContent;
+            renderBuildOrder();
+          }
+        });
+      }
+    }
+    
+    // Utility to refresh the list in the drawer:
+    function renderSaveList() {
+      const all = _loadAllSaves();
+      const list = document.getElementById('savesList');
+      list.innerHTML = '';
+    
+      Object.keys(all).forEach(name => {
+        const li = document.createElement('li');
+        li.className = 'd-flex align-items-center justify-content-between mb-1';
+        li.innerHTML = `
+          <span class="save-name">${name}</span>
+          <div>
+            <button class="btn btn-sm btn-light load-save me-1">Load</button>
+            <button class="btn btn-sm btn-danger delete-save">🗑</button>
+          </div>
+        `;
+            
+        // Load handler — no more alert
+        li.querySelector('.load-save').addEventListener('click', () => {
+          setState(all[name]);
+          recalculateSystemStats();
+          updateAllNames();    
+          restoreBuildOrder(all[name]);
+        });
+    
+        const label = li.querySelector('.save-name');
+        label.addEventListener('dblclick', () => {
+          label.contentEditable = 'true';
+          label.focus();
+        });
+        label.addEventListener('blur', () => {
+          label.contentEditable = 'false';
+          const newName = label.textContent.trim();
+          if (newName && newName !== name) {
+            all[newName] = all[name];
+            delete all[name];
+            _storeAllSaves(all);
+            renderSaveList();
+          } else {
+            label.textContent = name;
+          }
+        });
+    
+        li.querySelector('.delete-save').addEventListener('click', () => {
+          if (confirm(`Delete save "${name}"? This cannot be undone.`)) {
+            delete all[name];
+            _storeAllSaves(all);
+            renderSaveList();
+          }
+        });
+        list.appendChild(li);
+      });
+    }
+    
+    // 2) “Add Save” button — no more prompt or alert
+    document.getElementById('addSaveBtn').addEventListener('click', () => {
+      const all = _loadAllSaves();
+      let name = 'My System';
+      let i = 1;
+      while (all[name]) {
+        name = `My System ${++i}`;
+      }
+      // automatically save under the default name
+      all[name] = getState();
+      _storeAllSaves(all);
+      renderSaveList();
+    });
+
+    recalculateSystemStats();
+    renderSaveList();
+    
+    window.addEventListener('load', () => {
+      const overlay = document.getElementById('overlay');
+      const pt      = document.getElementById('page-transition');
+    
+      // 1) Fade IN: remove the black overlay on load
+      setTimeout(() => overlay.style.opacity = '0', 50);
+      setTimeout(() => overlay.remove(), 1050);
+    
+      // 2) Fade OUT: intercept clicks on any .fade-link
+      document.querySelectorAll('a.fade-link').forEach(link => {
+        link.addEventListener('click', e => {
+          e.preventDefault();
+          pt.style.opacity = '1';
+          setTimeout(() => window.location.href = link.href, 1000);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
