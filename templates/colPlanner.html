@@ -139,6 +139,8 @@
       border: 1px solid #555;
       padding: 10px;
       border-radius: 6px;
+      flex: 0 0 auto;
+      max-width: 560px;
       min-width: 140px;
       text-align: center;
       user-select: none;
@@ -1706,17 +1708,24 @@
         let entryT2 = stats.t2, entryT3 = stats.t3;
     
         // only ports/starports (negative t2 or t3) get the dynamic logic
-        if (stats.t2 < 0 || stats.t3 < 0) {
+        const scalingSubtypes = new Set([
+          "Coriolis Starport",
+          "Asteroid Base",       // T2 starport
+          "Ocellus Starport",
+          "Orbis Starport",      // T3 starports
+          "Planetary Port"       // T3 surface port
+        ]);
+        if (scalingSubtypes.has(subtype)) {
           if (isPrimary) {
-            // primary port costs zero, and does not count toward seenPorts
+            // primary port is free and doesn't increment the port-count
             entryT2 = Math.max(0, stats.t2);
             entryT3 = Math.max(0, stats.t3);
           } else {
-            // dynamic T2 cost if it's a T2 port
+            // dynamic T2 cost (only applies to T2 starports)
             if (stats.t2 < 0) {
               entryT2 = -Math.max(3, 2*seenPorts + 1);
             }
-            // dynamic T3 cost if it's a T3 port/starport
+            // dynamic T3 cost (only applies to T3 starports/ports)
             if (stats.t3 < 0) {
               entryT3 = -Math.max(6, 6*seenPorts);
             }
